@@ -1,6 +1,6 @@
 {
   "name": "price-comparator",
-  "homepage": "https://github.com/fahmimarouane/zt_up_nl_checking_stock.git",
+  "homepage": "https://github.com/fahmimarouane/zt_up_nl_checking_stock",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist"
+    "deploy": "gh-pages -d build"
   },
   "dependencies": {
     "lucide-react": "^0.562.0",
