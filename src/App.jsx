@@ -1,784 +1,1191 @@
 import React, { useState } from 'react';
-import { Upload, CheckCircle, TrendingUp, TrendingDown, Download, BarChart3, Filter, Menu } from 'lucide-react';
+import { Upload, CheckCircle, Download, ArrowUp, ArrowDown, Zap, Package, DollarSign, AlertTriangle, Eye, BarChart2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
+/* ═══════════════════════════════════════════════════════════════
+   DESIGN DIRECTION : "Market Intelligence Terminal"
+   — Éditorial / Bloomberg-inspired / Warm Cream + Electric Green
+   — Données présentées en cartes produit scannables, pas en table
+   — Layout en panneaux avec sidebar de navigation catégories
+   — Typographie : Bebas Neue (titres choc) + IBM Plex Mono (data)
+═══════════════════════════════════════════════════════════════ */
+const css = `
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --cream:      #f5f0e8;
+    --cream2:     #ede8dc;
+    --cream3:     #e3ddd0;
+    --ink:        #1a1612;
+    --ink2:       #3d3830;
+    --ink3:       #6b6459;
+    --ink4:       #a09890;
+    --green:      #00c853;
+    --green-dim:  rgba(0,200,83,0.10);
+    --green-mid:  rgba(0,200,83,0.20);
+    --red:        #e53935;
+    --red-dim:    rgba(229,57,53,0.10);
+    --red-mid:    rgba(229,57,53,0.20);
+    --amber:      #f59e0b;
+    --amber-dim:  rgba(245,158,11,0.10);
+    --blue:       #2563eb;
+    --blue-dim:   rgba(37,99,235,0.10);
+    --purple:     #7c3aed;
+    --purple-dim: rgba(124,58,237,0.10);
+    --border:     rgba(26,22,18,0.10);
+    --border2:    rgba(26,22,18,0.18);
+    --shadow:     0 2px 8px rgba(26,22,18,0.08);
+    --shadow-md:  0 4px 20px rgba(26,22,18,0.10);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body, .r-root {
+    background: var(--cream);
+    font-family: 'IBM Plex Sans', sans-serif;
+    color: var(--ink);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ─────────────────────────────────
+     LAYOUT PRINCIPAL : sidebar + main
+  ───────────────────────────────── */
+  .r-shell {
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* ─────────────────────────────────
+     SIDEBAR
+  ───────────────────────────────── */
+  .r-sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    background: var(--ink);
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--ink2) var(--ink);
+  }
+
+  .r-sidebar-logo {
+    padding: 24px 20px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .r-logo-mark {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 0.05em;
+    color: var(--green);
+    line-height: 1;
+    margin-bottom: 2px;
+  }
+  .r-logo-sub {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: rgba(255,255,255,0.35);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  .r-sidebar-mode {
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .r-sidebar-mode-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: rgba(255,255,255,0.3);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 8px;
+  }
+  .r-mode-btn {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 8px 12px;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: rgba(255,255,255,0.5);
+    background: transparent;
+    cursor: pointer;
+    margin-bottom: 4px;
+    transition: all 0.15s;
+  }
+  .r-mode-btn.active {
+    background: var(--green-dim);
+    border-color: var(--green);
+    color: var(--green);
+  }
+  .r-mode-btn:not(.active):hover {
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.8);
+  }
+
+  .r-sidebar-cats {
+    flex: 1;
+    padding: 16px 20px;
+  }
+  .r-sidebar-cats-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: rgba(255,255,255,0.3);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 10px;
+  }
+  .r-cat-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    text-align: left;
+    padding: 7px 10px;
+    border: none;
+    border-radius: 5px;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 400;
+    color: rgba(255,255,255,0.45);
+    background: transparent;
+    cursor: pointer;
+    margin-bottom: 2px;
+    transition: all 0.12s;
+  }
+  .r-cat-btn.active {
+    background: var(--green);
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .r-cat-btn:not(.active):hover {
+    background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.8);
+  }
+  .r-cat-count {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    background: rgba(255,255,255,0.08);
+    padding: 1px 6px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .r-cat-btn.active .r-cat-count {
+    background: rgba(26,22,18,0.15);
+  }
+
+  /* ─────────────────────────────────
+     MAIN CONTENT
+  ───────────────────────────────── */
+  .r-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ─── Topbar ─── */
+  .r-topbar {
+    background: var(--cream);
+    border-bottom: 2px solid var(--ink);
+    padding: 0 32px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+  .r-topbar-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 0.04em;
+    color: var(--ink);
+    line-height: 1;
+  }
+  .r-topbar-title span {
+    color: var(--green);
+  }
+  .r-topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* ─── Ticker strip ─── */
+  .r-ticker {
+    background: var(--ink);
+    padding: 7px 32px;
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .r-ticker::-webkit-scrollbar { display: none; }
+  .r-ticker-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .r-ticker-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: rgba(255,255,255,0.4);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .r-ticker-val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--green);
+  }
+  .r-ticker-sep { width: 1px; height: 14px; background: rgba(255,255,255,0.1); }
+  .r-ticker-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+  .tt-p { background: var(--purple-dim); color: #b48aff; border: 1px solid rgba(124,58,237,0.25); }
+  .tt-g { background: var(--green-dim);  color: var(--green); border: 1px solid rgba(0,200,83,0.25); }
+  .tt-r { background: var(--red-dim);    color: #ff6b6b; border: 1px solid rgba(229,57,53,0.25); }
+
+  /* ─── Body area ─── */
+  .r-body {
+    padding: 28px 32px;
+    flex: 1;
+  }
+
+  /* ─────────────────────────────────
+     UPLOAD ZONE
+  ───────────────────────────────── */
+  .r-upload-section {
+    margin-bottom: 28px;
+  }
+  .r-section-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .r-section-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 13px;
+    color: var(--green);
+    background: var(--green-dim);
+    border: 1px solid var(--green-mid);
+    width: 24px; height: 24px;
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .r-section-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 17px;
+    letter-spacing: 0.06em;
+    color: var(--ink);
+  }
+  .r-section-line {
+    flex: 1;
+    height: 1px;
+    background: var(--border2);
+  }
+
+  .r-upload-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .r-upload-card {
+    border: 1.5px dashed var(--border2);
+    border-radius: 8px;
+    padding: 20px;
+    background: var(--cream2);
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+  .r-upload-card:hover { border-color: var(--ink3); background: var(--cream3); }
+  .r-upload-card.has-file {
+    border-style: solid;
+    border-color: var(--green);
+    background: var(--green-dim);
+  }
+  .r-upload-row {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 10px;
+  }
+  .r-upload-ic {
+    width: 34px; height: 34px;
+    border: 1.5px solid var(--border2);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink3);
+    background: var(--cream);
+    flex-shrink: 0;
+  }
+  .r-upload-card.has-file .r-upload-ic {
+    border-color: var(--green);
+    color: var(--green);
+    background: var(--green-dim);
+  }
+  .r-upload-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 16px;
+    letter-spacing: 0.06em;
+    color: var(--ink);
+  }
+  .r-upload-sub {
+    font-size: 11px;
+    color: var(--ink3);
+    margin-top: 1px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  input[type="file"] {
+    display: block; width: 100%;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px; color: var(--ink3);
+    cursor: pointer;
+  }
+  input[type="file"]::file-selector-button {
+    background: var(--cream);
+    border: 1px solid var(--border2);
+    border-radius: 5px;
+    padding: 5px 12px;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 11px; font-weight: 500;
+    color: var(--ink2);
+    cursor: pointer;
+    margin-right: 10px;
+    transition: all 0.15s;
+  }
+  input[type="file"]::file-selector-button:hover {
+    background: var(--ink); color: var(--cream);
+  }
+  .r-file-ok {
+    margin-top: 8px;
+    display: flex; align-items: center; gap: 6px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px; color: var(--green);
+  }
+
+  /* ─────────────────────────────────
+     ACTIONS
+  ───────────────────────────────── */
+  .r-actions {
+    display: flex; gap: 10px; margin-bottom: 32px;
+  }
+  .r-btn-run {
+    flex: 1;
+    background: var(--ink);
+    color: var(--cream);
+    border: none;
+    border-radius: 7px;
+    padding: 13px 24px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 18px;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    transition: all 0.15s;
+  }
+  .r-btn-run:hover:not(:disabled) {
+    background: var(--ink2);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+  .r-btn-run:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .r-btn-run .btn-accent { color: var(--green); }
+
+  .r-btn-export {
+    background: var(--cream2);
+    border: 1.5px solid var(--border2);
+    color: var(--ink2);
+    border-radius: 7px;
+    padding: 13px 20px;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 13px; font-weight: 500;
+    cursor: pointer;
+    display: flex; align-items: center; gap: 8px;
+    transition: all 0.15s;
+  }
+  .r-btn-export:hover { background: var(--ink); color: var(--cream); border-color: var(--ink); }
+
+  @keyframes r-spin { to { transform: rotate(360deg); } }
+  .r-spinner {
+    width: 18px; height: 18px;
+    border: 2px solid rgba(245,240,232,0.3);
+    border-top-color: var(--cream);
+    border-radius: 50%;
+    animation: r-spin 0.7s linear infinite;
+  }
+
+  /* ─────────────────────────────────
+     FILTER BAR
+  ───────────────────────────────── */
+  .r-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .r-filter-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--ink4);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-right: 4px;
+  }
+  .r-chip {
+    padding: 5px 13px;
+    border-radius: 4px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.12s;
+    border: 1px solid var(--border2);
+    background: var(--cream2);
+    color: var(--ink3);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .r-chip .cn {
+    font-size: 10px;
+    background: var(--cream3);
+    padding: 0 5px;
+    border-radius: 3px;
+    color: var(--ink4);
+  }
+  .r-chip.f-all.act   { background: var(--ink);    border-color: var(--ink);    color: var(--cream);  }
+  .r-chip.f-both.act  { background: var(--purple-dim); border-color: var(--purple); color: var(--purple); font-weight: 600; }
+  .r-chip.f-price.act { background: var(--green-dim);  border-color: var(--green);  color: var(--green);  font-weight: 600; }
+  .r-chip.f-stock.act { background: var(--red-dim);    border-color: var(--red);    color: var(--red);    font-weight: 600; }
+  .r-chip:not(.act):hover { border-color: var(--ink3); color: var(--ink); }
+
+  /* ─────────────────────────────────
+     STAT ROW (mini KPIs horizontal)
+  ───────────────────────────────── */
+  .r-stat-strip {
+    display: flex;
+    gap: 0;
+    border: 1.5px solid var(--border2);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 24px;
+    background: var(--cream2);
+  }
+  .r-stat-cell {
+    flex: 1;
+    padding: 14px 18px;
+    border-right: 1px solid var(--border);
+  }
+  .r-stat-cell:last-child { border-right: none; }
+  .r-stat-lbl {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink4);
+    margin-bottom: 6px;
+  }
+  .r-stat-val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 30px;
+    letter-spacing: 0.02em;
+    line-height: 1;
+    color: var(--ink);
+  }
+  .r-stat-val.sv-green { color: var(--green); }
+  .r-stat-val.sv-red   { color: var(--red);   }
+  .r-stat-val.sv-amber { color: var(--amber); }
+
+  /* ─────────────────────────────────
+     CARDS GRID (le cœur du design)
+  ───────────────────────────────── */
+  .r-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 12px;
+  }
+
+  /* ─── Carte produit ─── */
+  .r-pcard {
+    background: var(--cream);
+    border: 1.5px solid var(--border2);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: all 0.15s;
+    box-shadow: var(--shadow);
+  }
+  .r-pcard:hover {
+    border-color: var(--ink3);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+  }
+
+  /* En-tête de carte */
+  .r-pcard-head {
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .r-pcard-name {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ink);
+    line-height: 1.3;
+    flex: 1;
+  }
+  .r-pcard-ref {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--ink4);
+    margin-top: 2px;
+  }
+  .r-pcard-badge {
+    flex-shrink: 0;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    font-weight: 600;
+    padding: 3px 7px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .pb-both  { background: var(--purple-dim); color: var(--purple); border: 1px solid rgba(124,58,237,0.2); }
+  .pb-price { background: var(--green-dim);  color: var(--green);  border: 1px solid rgba(0,200,83,0.2);  }
+  .pb-stock { background: var(--red-dim);    color: var(--red);    border: 1px solid rgba(229,57,53,0.2);  }
+
+  /* Corps de carte : 2 colonnes prix */
+  .r-pcard-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+  }
+  .r-price-col {
+    padding: 12px 14px;
+    border-right: 1px solid var(--border);
+  }
+  .r-price-col:last-child { border-right: none; }
+  .r-price-site {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--ink4);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 4px;
+  }
+  .r-price-val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px;
+    letter-spacing: 0.02em;
+    color: var(--ink);
+    line-height: 1;
+    margin-bottom: 5px;
+  }
+  .r-price-stock {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+  .ps-in  { background: var(--green-dim); color: var(--green); }
+  .ps-out { background: var(--red-dim);   color: var(--red);   }
+
+  /* Footer de carte : écart */
+  .r-pcard-foot {
+    padding: 9px 14px;
+    background: var(--cream2);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .r-diff-val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 16px;
+    letter-spacing: 0.03em;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .dv-up   { color: var(--red);   }
+  .dv-down { color: var(--green); }
+  .dv-eq   { color: var(--ink4);  }
+  .r-diff-pct {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--ink4);
+  }
+  .r-card-links {
+    display: flex; gap: 5px;
+  }
+  .r-card-link {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    font-weight: 600;
+    text-decoration: none;
+    padding: 3px 8px;
+    border-radius: 3px;
+    background: var(--cream);
+    border: 1px solid var(--border2);
+    color: var(--ink3);
+    transition: all 0.12s;
+    display: flex; align-items: center; gap: 3px;
+  }
+  .r-card-link:hover { background: var(--ink); color: var(--cream); border-color: var(--ink); }
+
+  /* ─────────────────────────────────
+     AVAILABILITY SUMMARY (4 panneaux)
+  ───────────────────────────────── */
+  .r-avail-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+  .r-avail-card {
+    border-radius: 7px;
+    padding: 14px 16px;
+    border: 1.5px solid var(--border);
+    background: var(--cream2);
+  }
+  .r-avail-card.av-green { border-color: var(--green); background: var(--green-dim); }
+  .r-avail-card.av-blue  { border-color: #60a5fa;     background: rgba(96,165,250,0.07); }
+  .r-avail-card.av-amber { border-color: var(--amber); background: var(--amber-dim); }
+  .r-avail-card.av-slate { border-color: #94a3b8;     background: rgba(148,163,184,0.08); }
+  .r-avail-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 36px;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    margin-bottom: 4px;
+  }
+  .av-green .r-avail-num { color: var(--green); }
+  .av-blue  .r-avail-num { color: #2563eb; }
+  .av-amber .r-avail-num { color: var(--amber); }
+  .av-slate .r-avail-num { color: #64748b; }
+  .r-avail-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink2);
+    margin-bottom: 6px;
+  }
+  .r-avail-badges { display: flex; gap: 4px; flex-wrap: wrap; }
+  .r-avail-badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: rgba(26,22,18,0.06);
+    color: var(--ink3);
+    border: 1px solid var(--border);
+  }
+
+  /* ─────────────────────────────────
+     EMPTY / INITIAL STATES
+  ───────────────────────────────── */
+  .r-empty {
+    text-align: center;
+    padding: 64px 20px;
+    border: 1.5px dashed var(--border2);
+    border-radius: 10px;
+    background: var(--cream2);
+  }
+  .r-empty-ic {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 64px;
+    color: var(--border2);
+    line-height: 1;
+    margin-bottom: 12px;
+    letter-spacing: 0.02em;
+  }
+  .r-empty-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px;
+    letter-spacing: 0.06em;
+    color: var(--ink3);
+    margin-bottom: 5px;
+  }
+  .r-empty-sub {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--ink4);
+  }
+
+  /* ─────────────────────────────────
+     RESPONSIVE
+  ───────────────────────────────── */
+  @media (max-width: 900px) {
+    .r-sidebar { display: none; }
+    .r-body    { padding: 20px 16px; }
+    .r-topbar  { padding: 0 16px; }
+    .r-avail-grid   { grid-template-columns: 1fr 1fr; }
+    .r-upload-grid  { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 560px) {
+    .r-avail-grid,
+    .r-cards-grid { grid-template-columns: 1fr; }
+  }
+`;
+
+/* ─── Helpers ─── */
+const normalizeRef = (ref) => {
+  if (!ref) return 'nan';
+  return String(ref).replace(/\.0$/, '').trim();
+};
+const priceToFloat = (p) => {
+  if (!p) return null;
+  const n = parseFloat(String(p).replace(/[^\d,]/g, '').replace(',', '.'));
+  return isNaN(n) ? null : n;
+};
+const fmt = (val) => {
+  if (val === null || val === undefined) return '—';
+  return val.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' MAD';
+};
+
+/* ─── Composant ─── */
 const PriceComparator = () => {
-  // États pour la sélection du mode de comparaison
-  const [comparisonMode, setComparisonMode] = useState('zt-up'); // 'zt-up' ou 'zt-nl'
-  
-  // États pour les fichiers ZoneTech vs UltraPC
-  const [zonetechFile, setZonetechFile] = useState(null);
-  const [ultrapcFile, setUltrapcFile] = useState(null);
-  
-  // États pour les fichiers ZoneTech vs NextLevelPC
-  const [zonetechFile2, setZonetechFile2] = useState(null);
-  const [nextlevelFile, setNextlevelFile] = useState(null);
-  
+  const [mode,    setMode]    = useState('zt-up');
+  const [ztFile,  setZtFile]  = useState(null);
+  const [upFile,  setUpFile]  = useState(null);
+  const [ztFile2, setZtFile2] = useState(null);
+  const [nlFile,  setNlFile]  = useState(null);
   const [results, setResults] = useState(null);
-  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [selCat,  setSelCat]  = useState(null);
   const [loading, setLoading] = useState(false);
-  const [filterMode, setFilterMode] = useState('all');
+  const [filter,  setFilter]  = useState('all');
 
-  const normalizeReference = (ref) => {
-    if (!ref) return 'nan';
-    return String(ref).replace(/\.0$/, '').trim();
+  const onFile = (e, key) => {
+    const f = e.target.files[0]; if (!f) return;
+    if (key === 'zt')  setZtFile(f);
+    if (key === 'up')  setUpFile(f);
+    if (key === 'zt2') setZtFile2(f);
+    if (key === 'nl')  setNlFile(f);
   };
+  const onModeChange = (m) => { setMode(m); setResults(null); setSelCat(null); };
 
-  const priceToFloat = (price) => {
-    if (!price) return null;
-    const cleaned = String(price).replace(/[^\d,]/g, '').replace(',', '.');
-    const num = parseFloat(cleaned);
-    return isNaN(num) ? null : num;
-  };
-
-  const formatPrice = (val) => {
-    if (val === null || val === undefined) return '';
-    return val.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' MAD';
-  };
-
-  const handleFileUpload = (e, type) => {
-    const file = e.target.files[0];
-    if (file) {
-      switch(type) {
-        case 'zonetech':
-          setZonetechFile(file);
-          break;
-        case 'ultrapc':
-          setUltrapcFile(file);
-          break;
-        case 'zonetech2':
-          setZonetechFile2(file);
-          break;
-        case 'nextlevel':
-          setNextlevelFile(file);
-          break;
-        default:
-          break;
-      }
-    }
-  };
-
-  const handleModeChange = (mode) => {
-    setComparisonMode(mode);
-    // Réinitialiser les résultats lors du changement de mode
-    setResults(null);
-    setSelectedCategory(null);
-  };
-
-  const processComparison = async () => {
-    let file1, file2, site1Name, site2Name;
-
-    if (comparisonMode === 'zt-up') {
-      if (!zonetechFile || !ultrapcFile) {
-        alert('Veuillez charger les deux fichiers Excel (ZoneTech et UltraPC)');
-        return;
-      }
-      file1 = zonetechFile;
-      file2 = ultrapcFile;
-      site1Name = 'ZoneTech';
-      site2Name = 'UltraPC';
+  const compare = async () => {
+    let f1, f2, s1, s2;
+    if (mode === 'zt-up') {
+      if (!ztFile || !upFile) { alert('Chargez les deux fichiers'); return; }
+      f1 = ztFile; f2 = upFile; s1 = 'ZoneTech'; s2 = 'UltraPC';
     } else {
-      if (!zonetechFile2 || !nextlevelFile) {
-        alert('Veuillez charger les deux fichiers Excel (ZoneTech et NextLevelPC)');
-        return;
-      }
-      file1 = zonetechFile2;
-      file2 = nextlevelFile;
-      site1Name = 'ZoneTech';
-      site2Name = 'NextLevelPC';
+      if (!ztFile2 || !nlFile) { alert('Chargez les deux fichiers'); return; }
+      f1 = ztFile2; f2 = nlFile; s1 = 'ZoneTech'; s2 = 'NextLevelPC';
     }
-
     setLoading(true);
-    
     try {
-      const data1 = await file1.arrayBuffer();
-      const workbook1 = XLSX.read(data1);
-      
-      const data2 = await file2.arrayBuffer();
-      const workbook2 = XLSX.read(data2);
+      const wb1 = XLSX.read(await f1.arrayBuffer());
+      const wb2 = XLSX.read(await f2.arrayBuffer());
+      const d1 = XLSX.utils.sheet_to_json(wb1.Sheets[wb1.SheetNames[0]]);
+      const d2 = XLSX.utils.sheet_to_json(wb2.Sheets[wb2.SheetNames[0]]);
+      const res = {};
+      const cats = new Set([...d1.map(r => r.categorie), ...d2.map(r => r.categorie)]);
 
-      const sheetName1 = workbook1.SheetNames[0];
-      const sheetName2 = workbook2.SheetNames[0];
-      
-      const allData1 = XLSX.utils.sheet_to_json(workbook1.Sheets[sheetName1]);
-      const allData2 = XLSX.utils.sheet_to_json(workbook2.Sheets[sheetName2]);
-
-      const comparisonResults = {};
-
-      const allCategories = new Set([
-        ...allData1.map(row => row.categorie),
-        ...allData2.map(row => row.categorie)
-      ]);
-
-      allCategories.forEach(category => {
-        if (!category) return;
-
-        const categoryData1 = allData1
-          .filter(row => row.categorie === category)
-          .map(row => ({
-            ...row,
-            reference: normalizeReference(row.reference),
-            price_num: priceToFloat(row.price)
-          }))
-          .filter(row => row.reference !== 'nan');
-
-        const categoryData2 = allData2
-          .filter(row => row.categorie === category)
-          .map(row => ({
-            ...row,
-            reference: normalizeReference(row.reference),
-            price_num: priceToFloat(row.price)
-          }))
-          .filter(row => row.reference !== 'nan');
-
-        const map1 = new Map(categoryData1.map(item => [item.reference, item]));
-        const map2 = new Map(categoryData2.map(item => [item.reference, item]));
-
-        const important = [];
-        
-        map1.forEach((item1, ref) => {
-          const item2 = map2.get(ref);
-          if (!item2) return;
-
-          const stockMismatch = item1.availability !== item2.availability;
-          const priceMismatch = item1.price_num !== item2.price_num;
-
-          if (stockMismatch || priceMismatch) {
-            const diff = item1.price_num - item2.price_num;
-            const diffPercent = item2.price_num ? (diff / item2.price_num) * 100 : 0;
-
-            let caseType = '';
-            let differenceType = '';
-            
-            if (stockMismatch && priceMismatch) {
-              differenceType = 'both';
-              if (item1.availability === 'outofstock' && item2.availability === 'instock') {
-                caseType = `Out of stock at ${site1Name} / In stock at ${site2Name}`;
-              } else {
-                caseType = `In stock at ${site1Name} / Out of stock at ${site2Name}`;
-              }
-            } else if (priceMismatch) {
-              differenceType = 'price';
-              caseType = 'Différence de prix uniquement';
-            } else if (stockMismatch) {
-              differenceType = 'stock';
-              if (item1.availability === 'outofstock' && item2.availability === 'instock') {
-                caseType = `Out of stock at ${site1Name} / In stock at ${site2Name}`;
-              } else {
-                caseType = `In stock at ${site1Name} / Out of stock at ${site2Name}`;
-              }
-            }
-
-            important.push({
-              product_name: item1.product_name || item1.nom_produit || 'N/A',
-              reference: ref,
-              site1_price: item1.price_num,
-              site2_price: item2.price_num,
-              difference: diff,
-              diff_percent: diffPercent,
-              site1_stock: item1.availability,
-              site2_stock: item2.availability,
-              case: caseType,
-              difference_type: differenceType,
-              site1_url: item1.url_produit || item1.url || '',
-              site2_url: item2.url_produit || item2.url || '',
-              site1_name: site1Name,
-              site2_name: site2Name
-            });
-          }
+      cats.forEach(cat => {
+        if (!cat) return;
+        const norm = (rows) => rows
+          .filter(r => r.categorie === cat)
+          .map(r => ({ ...r, reference: normalizeRef(r.reference), price_num: priceToFloat(r.price) }))
+          .filter(r => r.reference !== 'nan');
+        const c1 = norm(d1); const c2 = norm(d2);
+        const m1 = new Map(c1.map(i => [i.reference, i]));
+        const m2 = new Map(c2.map(i => [i.reference, i]));
+        const items = [];
+        m1.forEach((i1, ref) => {
+          const i2 = m2.get(ref); if (!i2) return;
+          const sM = i1.availability !== i2.availability;
+          const pM = i1.price_num !== i2.price_num;
+          if (!sM && !pM) return;
+          const diff = i1.price_num - i2.price_num;
+          const diffPct = i2.price_num ? (diff / i2.price_num) * 100 : 0;
+          const dtype = (sM && pM) ? 'both' : pM ? 'price' : 'stock';
+          const ctype = dtype === 'price' ? 'Différence de prix uniquement'
+            : i1.availability === 'outofstock'
+              ? `Out of stock ${s1} / In stock ${s2}`
+              : `In stock ${s1} / Out of stock ${s2}`;
+          items.push({
+            product_name: i1.product_name || i1.nom_produit || 'N/A',
+            reference: ref, site1_price: i1.price_num, site2_price: i2.price_num,
+            difference: diff, diff_percent: diffPct,
+            site1_stock: i1.availability, site2_stock: i2.availability,
+            case: ctype, difference_type: dtype,
+            site1_url: i1.url_produit || i1.url || '',
+            site2_url: i2.url_produit || i2.url || '',
+            site1_name: s1, site2_name: s2
+          });
         });
-
-        if (important.length > 0) {
-          comparisonResults[category] = important;
-        }
+        if (items.length) res[cat] = items;
       });
-
-      setResults(comparisonResults);
-      if (Object.keys(comparisonResults).length > 0) {
-        setSelectedCategory(Object.keys(comparisonResults)[0]);
-      } else {
-        alert('Aucune différence trouvée entre les deux fichiers');
-      }
-    } catch (error) {
-      console.error('Erreur détaillée:', error);
-      alert('Erreur lors du traitement: ' + error.message);
-    } finally {
-      setLoading(false);
-    }
+      setResults(res);
+      const keys = Object.keys(res);
+      if (keys.length) setSelCat(keys[0]); else alert('Aucune différence trouvée');
+    } catch (err) { alert('Erreur : ' + err.message); }
+    finally { setLoading(false); }
   };
 
-  const exportToExcel = () => {
+  const exportXlsx = () => {
     if (!results) return;
-
     const wb = XLSX.utils.book_new();
-    const currentData = results[Object.keys(results)[0]];
-    const site1Name = currentData[0]?.site1_name || 'Site1';
-    const site2Name = currentData[0]?.site2_name || 'Site2';
-
-    Object.entries(results).forEach(([category, data]) => {
-      const exportData = data.map(item => ({
-        'Product Name': item.product_name,
-        'Reference': item.reference,
-        [`${site1Name} Price`]: formatPrice(item.site1_price),
-        [`${site2Name} Price`]: formatPrice(item.site2_price),
-        'Difference': formatPrice(item.difference),
-        'Diff %': item.diff_percent.toFixed(2) + '%',
-        [`${site1Name} Stock`]: item.site1_stock === 'instock' ? 'In Stock' : 'Out of Stock',
-        [`${site2Name} Stock`]: item.site2_stock === 'instock' ? 'In Stock' : 'Out of Stock',
-        'Case': item.case,
-        'Type': item.difference_type === 'both' ? 'Prix + Stock' : 
-                item.difference_type === 'price' ? 'Prix seulement' : 'Stock seulement',
-        [`${site1Name} URL`]: item.site1_url,
-        [`${site2Name} URL`]: item.site2_url
-      }));
-
-      const ws = XLSX.utils.json_to_sheet(exportData);
-      const sheetName = category.substring(0, 31);
-      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    Object.entries(results).forEach(([cat, data]) => {
+      const ws = XLSX.utils.json_to_sheet(data.map(item => ({
+        'Product': item.product_name, 'Reference': item.reference,
+        [`${item.site1_name} Price`]: fmt(item.site1_price),
+        [`${item.site2_name} Price`]: fmt(item.site2_price),
+        'Diff': fmt(item.difference), 'Diff %': item.diff_percent.toFixed(2) + '%',
+        [`${item.site1_name} Stock`]: item.site1_stock === 'instock' ? '✓' : '✗',
+        [`${item.site2_name} Stock`]: item.site2_stock === 'instock' ? '✓' : '✗',
+        'Type': item.difference_type, 'Case': item.case,
+        [`${item.site1_name} URL`]: item.site1_url,
+        [`${item.site2_name} URL`]: item.site2_url,
+      })));
+      XLSX.utils.book_append_sheet(wb, ws, cat.substring(0, 31));
     });
-
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
-    XLSX.writeFile(wb, `COMPARAISON_${site1Name}_vs_${site2Name}_${timestamp}.xlsx`);
+    XLSX.writeFile(wb, `COMPARAISON_${new Date().toISOString().substring(0, 10)}.xlsx`);
   };
 
-  const getFilteredData = () => {
-    if (!results || !selectedCategory) return [];
-    
-    const categoryData = results[selectedCategory];
-    
-    if (filterMode === 'all') return categoryData;
-    if (filterMode === 'both') return categoryData.filter(d => d.difference_type === 'both');
-    if (filterMode === 'price') return categoryData.filter(d => d.difference_type === 'price');
-    if (filterMode === 'stock') return categoryData.filter(d => d.difference_type === 'stock');
-    
-    return categoryData;
-  };
+  const filtered = (() => {
+    if (!results || !selCat) return [];
+    const d = results[selCat];
+    if (filter === 'both')  return d.filter(x => x.difference_type === 'both');
+    if (filter === 'price') return d.filter(x => x.difference_type === 'price');
+    if (filter === 'stock') return d.filter(x => x.difference_type === 'stock');
+    return d;
+  })();
 
-  const currentData = getFilteredData();
+  const s1n = filtered[0]?.site1_name || (mode === 'zt-up' ? 'ZoneTech' : 'ZoneTech');
+  const s2n = filtered[0]?.site2_name || (mode === 'zt-up' ? 'UltraPC'  : 'NextLevelPC');
 
-  const getSummaryStats = () => {
-    if (!currentData.length) return null;
-
-    const site1InSite2In = currentData.filter(d => d.site1_stock === 'instock' && d.site2_stock === 'instock').length;
-    const site1InSite2Out = currentData.filter(d => d.site1_stock === 'instock' && d.site2_stock === 'outofstock').length;
-    const site1OutSite2In = currentData.filter(d => d.site1_stock === 'outofstock' && d.site2_stock === 'instock').length;
-    const site1OutSite2Out = currentData.filter(d => d.site1_stock === 'outofstock' && d.site2_stock === 'outofstock').length;
-
-    return { site1InSite2In, site1InSite2Out, site1OutSite2In, site1OutSite2Out };
-  };
-
-  const getGlobalStats = () => {
-    if (!results) return null;
-
-    let totalProducts = 0;
-    let totalBoth = 0;
-    let totalPriceOnly = 0;
-    let totalStockOnly = 0;
-
-    Object.values(results).forEach(categoryData => {
-      totalProducts += categoryData.length;
-      totalBoth += categoryData.filter(d => d.difference_type === 'both').length;
-      totalPriceOnly += categoryData.filter(d => d.difference_type === 'price').length;
-      totalStockOnly += categoryData.filter(d => d.difference_type === 'stock').length;
+  const gStats = results ? (() => {
+    let total = 0, both = 0, price = 0, stock = 0;
+    Object.values(results).forEach(d => {
+      total += d.length;
+      both  += d.filter(x => x.difference_type === 'both').length;
+      price += d.filter(x => x.difference_type === 'price').length;
+      stock += d.filter(x => x.difference_type === 'stock').length;
     });
+    return { total, both, price, stock, cats: Object.keys(results).length };
+  })() : null;
 
-    return { totalProducts, totalBoth, totalPriceOnly, totalStockOnly, totalCategories: Object.keys(results).length };
-  };
+  const catD = results && selCat ? results[selCat] : [];
+  const ss = catD.length ? {
+    s1ins2in:   filtered.filter(d => d.site1_stock==='instock'    && d.site2_stock==='instock').length,
+    s1ins2out:  filtered.filter(d => d.site1_stock==='instock'    && d.site2_stock==='outofstock').length,
+    s1outs2in:  filtered.filter(d => d.site1_stock==='outofstock' && d.site2_stock==='instock').length,
+    s1outs2out: filtered.filter(d => d.site1_stock==='outofstock' && d.site2_stock==='outofstock').length,
+  } : null;
 
-  const summaryStats = getSummaryStats();
-  const globalStats = getGlobalStats();
-
-  // Obtenir les noms des sites pour l'affichage
-  const site1Name = currentData[0]?.site1_name || 'Site 1';
-  const site2Name = currentData[0]?.site2_name || 'Site 2';
+  const canGo = mode === 'zt-up' ? (ztFile && upFile) : (ztFile2 && nlFile);
+  const uploadFiles = mode === 'zt-up'
+    ? [{ key: 'zt', label: 'ZoneTech', file: ztFile }, { key: 'up', label: 'UltraPC', file: upFile }]
+    : [{ key: 'zt2', label: 'ZoneTech', file: ztFile2 }, { key: 'nl', label: 'NextLevelPC', file: nlFile }];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <div className="max-w-7xl mx-auto">
-        
-        {/* Header avec sélection du mode */}
-        <div className="bg-white rounded-lg shadow-lg border-b-4 border-blue-600 p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                🎯 Comparateur de Prix Multi-Sites
-              </h1>
-              <p className="text-gray-600">Analyse complète des prix et disponibilités par catégorie</p>
-            </div>
-            {globalStats && (
-              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-600">{globalStats.totalCategories}</div>
-                    <div className="text-gray-600">Catégories</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-600">{globalStats.totalProducts}</div>
-                    <div className="text-gray-600">Produits</div>
-                  </div>
-                  <div className="text-center col-span-2">
-                    <div className="flex gap-2 justify-center text-xs">
-                      <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded">
-                        {globalStats.totalBoth} Prix+Stock
-                      </span>
-                      <span className="bg-green-100 text-green-700 px-2 py-1 rounded">
-                        {globalStats.totalPriceOnly} Prix
-                      </span>
-                      <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded">
-                        {globalStats.totalStockOnly} Stock
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+    <>
+      <style>{css}</style>
+      <div className="r-root">
+        <div className="r-shell">
 
-          {/* Menu de sélection du mode */}
-          <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
-            <Menu className="w-5 h-5 text-gray-600" />
-            <span className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
-              Mode de comparaison :
-            </span>
-            <div className="flex gap-2">
-              <button
-                onClick={() => handleModeChange('zt-up')}
-                className={`px-6 py-2 text-sm font-semibold rounded-lg transition-all ${
-                  comparisonMode === 'zt-up'
-                    ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md'
-                    : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-                }`}
-              >
-                ZoneTech vs UltraPC
+          {/* ══ SIDEBAR ══ */}
+          <aside className="r-sidebar">
+            <div className="r-sidebar-logo">
+              <div className="r-logo-mark">PRICE MATCHING</div>
+              <div className="r-logo-sub">Market Intelligence</div>
+            </div>
+
+            <div className="r-sidebar-mode">
+              <div className="r-sidebar-mode-label">Comparaison active</div>
+              <button className={`r-mode-btn ${mode === 'zt-up' ? 'active' : ''}`} onClick={() => onModeChange('zt-up')}>
+                ZoneTech · UltraPC
               </button>
-              <button
-                onClick={() => handleModeChange('zt-nl')}
-                className={`px-6 py-2 text-sm font-semibold rounded-lg transition-all ${
-                  comparisonMode === 'zt-nl'
-                    ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md'
-                    : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-                }`}
-              >
-                ZoneTech vs NextLevelPC
+              <button className={`r-mode-btn ${mode === 'zt-nl' ? 'active' : ''}`} onClick={() => onModeChange('zt-nl')}>
+                ZoneTech · NextLevel
               </button>
             </div>
-          </div>
-        </div>
 
-        {/* Upload Files - Affichage conditionnel selon le mode */}
-        {comparisonMode === 'zt-up' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4 hover:shadow-lg transition-shadow">
-              <label className="block cursor-pointer">
-                <div className="flex items-center mb-3">
-                  <Upload className="w-5 h-5 mr-2 text-blue-600" />
-                  <span className="text-base font-semibold text-gray-700">Fichier ZoneTech</span>
-                </div>
-                <input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={(e) => handleFileUpload(e, 'zonetech')}
-                  className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
-                />
-              </label>
-              {zonetechFile && (
-                <div className="flex items-center text-green-600 text-sm mt-3 bg-green-50 p-2 rounded-md">
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  <span className="font-medium">{zonetechFile.name}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4 hover:shadow-lg transition-shadow">
-              <label className="block cursor-pointer">
-                <div className="flex items-center mb-3">
-                  <Upload className="w-5 h-5 mr-2 text-blue-600" />
-                  <span className="text-base font-semibold text-gray-700">Fichier UltraPC</span>
-                </div>
-                <input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={(e) => handleFileUpload(e, 'ultrapc')}
-                  className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
-                />
-              </label>
-              {ultrapcFile && (
-                <div className="flex items-center text-green-600 text-sm mt-3 bg-green-50 p-2 rounded-md">
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  <span className="font-medium">{ultrapcFile.name}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {comparisonMode === 'zt-nl' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4 hover:shadow-lg transition-shadow">
-              <label className="block cursor-pointer">
-                <div className="flex items-center mb-3">
-                  <Upload className="w-5 h-5 mr-2 text-blue-600" />
-                  <span className="text-base font-semibold text-gray-700">Fichier ZoneTech</span>
-                </div>
-                <input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={(e) => handleFileUpload(e, 'zonetech2')}
-                  className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
-                />
-              </label>
-              {zonetechFile2 && (
-                <div className="flex items-center text-green-600 text-sm mt-3 bg-green-50 p-2 rounded-md">
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  <span className="font-medium">{zonetechFile2.name}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4 hover:shadow-lg transition-shadow">
-              <label className="block cursor-pointer">
-                <div className="flex items-center mb-3">
-                  <Upload className="w-5 h-5 mr-2 text-blue-600" />
-                  <span className="text-base font-semibold text-gray-700">Fichier NextLevelPC</span>
-                </div>
-                <input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={(e) => handleFileUpload(e, 'nextlevel')}
-                  className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
-                />
-              </label>
-              {nextlevelFile && (
-                <div className="flex items-center text-green-600 text-sm mt-3 bg-green-50 p-2 rounded-md">
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  <span className="font-medium">{nextlevelFile.name}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Action Buttons */}
-        <div className="flex gap-3 mb-6">
-          <button
-            onClick={processComparison}
-            disabled={
-              (comparisonMode === 'zt-up' && (!zonetechFile || !ultrapcFile)) ||
-              (comparisonMode === 'zt-nl' && (!zonetechFile2 || !nextlevelFile)) ||
-              loading
-            }
-            className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <>
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                Analyse en cours...
-              </>
-            ) : (
-              <>
-                <BarChart3 className="w-5 h-5" />
-                Comparer les fichiers
-              </>
-            )}
-          </button>
-          
-          {results && (
-            <button
-              onClick={exportToExcel}
-              className="bg-gradient-to-r from-green-600 to-green-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:from-green-700 hover:to-green-800 transition-all flex items-center gap-2"
-            >
-              <Download className="w-5 h-5" />
-              Exporter Excel
-            </button>
-          )}
-        </div>
-
-        {results && (
-          <>
-            {/* Category Tabs */}
-            <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4 mb-6">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-                Catégories ({Object.keys(results).length})
-              </h3>
-              <div className="flex flex-wrap gap-2">
-                {Object.keys(results).map(category => (
-                  <button
-                    key={category}
-                    onClick={() => setSelectedCategory(category)}
-                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
-                      selectedCategory === category
-                        ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {category}
-                    <span className="ml-2 bg-white bg-opacity-20 px-2 py-0.5 rounded-full text-xs">
-                      {results[category].length}
-                    </span>
+            {results && (
+              <div className="r-sidebar-cats">
+                <div className="r-sidebar-cats-label">Catégories · {gStats?.cats}</div>
+                {Object.keys(results).map(cat => (
+                  <button key={cat} className={`r-cat-btn ${selCat === cat ? 'active' : ''}`} onClick={() => setSelCat(cat)}>
+                    <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{cat}</span>
+                    <span className="r-cat-count">{results[cat].length}</span>
                   </button>
                 ))}
               </div>
-            </div>
+            )}
+          </aside>
 
-            {/* Filter Buttons */}
-            <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4 mb-6">
-              <div className="flex items-center justify-between flex-wrap gap-4">
-                <div className="flex items-center gap-2">
-                  <Filter className="w-5 h-5 text-gray-600" />
-                  <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
-                    Filtrer par type
-                  </h3>
-                </div>
-                <div className="flex gap-2 flex-wrap">
-                  <button
-                    onClick={() => setFilterMode('all')}
-                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
-                      filterMode === 'all'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    Tout ({results[selectedCategory]?.length || 0})
+          {/* ══ MAIN ══ */}
+          <div className="r-main">
+
+            {/* Topbar */}
+            <div className="r-topbar">
+              <div className="r-topbar-title">
+                ACH TARI <span>F STOCK</span>
+              </div>
+              <div className="r-topbar-right">
+                {results && (
+                  <button className="r-btn-export" onClick={exportXlsx}>
+                    <Download size={14} /> Exporter Excel
                   </button>
-                  <button
-                    onClick={() => setFilterMode('both')}
-                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
-                      filterMode === 'both'
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    Prix + Stock ({results[selectedCategory]?.filter(d => d.difference_type === 'both').length || 0})
-                  </button>
-                  <button
-                    onClick={() => setFilterMode('price')}
-                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
-                      filterMode === 'price'
-                        ? 'bg-green-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    Prix ({results[selectedCategory]?.filter(d => d.difference_type === 'price').length || 0})
-                  </button>
-                  <button
-                    onClick={() => setFilterMode('stock')}
-                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
-                      filterMode === 'stock'
-                        ? 'bg-orange-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    Stock ({results[selectedCategory]?.filter(d => d.difference_type === 'stock').length || 0})
-                  </button>
-                </div>
+                )}
               </div>
             </div>
 
-            {/* Summary Stats */}
-            {summaryStats && (
-              <div className="bg-white rounded-lg shadow-md border border-gray-200 p-6 mb-6">
-                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
-                  <BarChart3 className="w-5 h-5 mr-2 text-blue-600" />
-                  Résumé - {selectedCategory}
-                </h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  
-                  <div className="bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-300 rounded-xl p-5 hover:shadow-lg transition-shadow">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-green-700 font-semibold text-sm">✓ Disponibles partout</span>
-                    </div>
-                    <div className="text-4xl font-bold text-green-700 mb-3">{summaryStats.site1InSite2In}</div>
-                    <div className="flex gap-2 text-xs">
-                      <span className="bg-green-200 text-green-800 px-2 py-1 rounded-md font-medium">{site1Name} ✓</span>
-                      <span className="bg-green-200 text-green-800 px-2 py-1 rounded-md font-medium">{site2Name} ✓</span>
-                    </div>
-                  </div>
-
-                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-300 rounded-xl p-5 hover:shadow-lg transition-shadow">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-blue-700 font-semibold text-sm">Seulement {site1Name}</span>
-                    </div>
-                    <div className="text-4xl font-bold text-blue-700 mb-3">{summaryStats.site1InSite2Out}</div>
-                    <div className="flex gap-2 text-xs">
-                      <span className="bg-blue-200 text-blue-800 px-2 py-1 rounded-md font-medium">{site1Name} ✓</span>
-                      <span className="bg-red-200 text-red-800 px-2 py-1 rounded-md font-medium">{site2Name} ✗</span>
-                    </div>
-                  </div>
-
-                  <div className="bg-gradient-to-br from-orange-50 to-orange-100 border-2 border-orange-300 rounded-xl p-5 hover:shadow-lg transition-shadow">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-orange-700 font-semibold text-sm">Seulement {site2Name}</span>
-                    </div>
-                    <div className="text-4xl font-bold text-orange-700 mb-3">{summaryStats.site1OutSite2In}</div>
-                    <div className="flex gap-2 text-xs">
-                      <span className="bg-red-200 text-red-800 px-2 py-1 rounded-md font-medium">{site1Name} ✗</span>
-                      <span className="bg-orange-200 text-orange-800 px-2 py-1 rounded-md font-medium">{site2Name} ✓</span>
-                    </div>
-                  </div>
-
-                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 border-2 border-gray-300 rounded-xl p-5 hover:shadow-lg transition-shadow">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-gray-700 font-semibold text-sm">✗ Rupture partout</span>
-                    </div>
-                    <div className="text-4xl font-bold text-gray-700 mb-3">{summaryStats.site1OutSite2Out}</div>
-                    <div className="flex gap-2 text-xs">
-                      <span className="bg-gray-200 text-gray-800 px-2 py-1 rounded-md font-medium">{site1Name} ✗</span>
-                      <span className="bg-gray-200 text-gray-800 px-2 py-1 rounded-md font-medium">{site2Name} ✗</span>
-                    </div>
-                  </div>
-
+            {/* Ticker avec stats globales */}
+            {gStats && (
+              <div className="r-ticker">
+                <div className="r-ticker-item">
+                  <span className="r-ticker-label">Total produits</span>
+                  <span className="r-ticker-val">{gStats.total}</span>
+                </div>
+                <div className="r-ticker-sep" />
+                <div className="r-ticker-item">
+                  <span className="r-ticker-label">Catégories</span>
+                  <span className="r-ticker-val">{gStats.cats}</span>
+                </div>
+                <div className="r-ticker-sep" />
+                <div className="r-ticker-item">
+                  <span className="r-ticker-label">Répartition</span>
+                  <span className="r-ticker-tag tt-p">{gStats.both} PRIX+STOCK</span>
+                  <span className="r-ticker-tag tt-g">{gStats.price} PRIX</span>
+                  <span className="r-ticker-tag tt-r">{gStats.stock} STOCK</span>
                 </div>
               </div>
             )}
 
-            {/* Price Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4">
-                <p className="text-xs text-gray-600 mb-2 uppercase tracking-wide">Produits</p>
-                <p className="text-3xl font-bold text-gray-900">{currentData.length}</p>
-              </div>
-              
-              <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4">
-                <div className="flex items-center mb-2">
-                  <TrendingUp className="w-4 h-4 text-red-600 mr-1" />
-                  <p className="text-xs text-gray-600 uppercase tracking-wide">{site1Name} Plus Cher</p>
-                </div>
-                <p className="text-3xl font-bold text-red-600">{currentData.filter(d => d.difference > 0).length}</p>
-              </div>
-              
-              <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4">
-                <div className="flex items-center mb-2">
-                  <TrendingDown className="w-4 h-4 text-green-600 mr-1" />
-                  <p className="text-xs text-gray-600 uppercase tracking-wide">{site1Name} Moins Cher</p>
-                </div>
-                <p className="text-3xl font-bold text-green-600">{currentData.filter(d => d.difference < 0).length}</p>
-              </div>
-              
-              <div className="bg-white rounded-lg shadow-md border border-gray-200 p-4">
-                <p className="text-xs text-gray-600 mb-2 uppercase tracking-wide">Diff. Moyenne</p>
-                <p className="text-3xl font-bold text-blue-600">
-                  {currentData.length > 0 
-                    ? (currentData.reduce((sum, d) => sum + Math.abs(d.diff_percent), 0) / currentData.length).toFixed(1)
-                    : 0}%
-                </p>
-              </div>
-            </div>
+            <div className="r-body">
 
-            {/* Table */}
-            <div className="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-200">
-                    <tr>
-                      <th className="px-4 py-3 text-left font-semibold text-gray-700 uppercase tracking-wide">Produit</th>
-                      <th className="px-4 py-3 text-left font-semibold text-gray-700 uppercase tracking-wide">Réf.</th>
-                      <th className="px-4 py-3 text-center font-semibold text-gray-700 uppercase tracking-wide">Type</th>
-                      <th className="px-4 py-3 text-right font-semibold text-gray-700 uppercase tracking-wide">{site1Name}</th>
-                      <th className="px-4 py-3 text-right font-semibold text-gray-700 uppercase tracking-wide">{site2Name}</th>
-                      <th className="px-4 py-3 text-right font-semibold text-gray-700 uppercase tracking-wide">Diff.</th>
-                      <th className="px-4 py-3 text-center font-semibold text-gray-700 uppercase tracking-wide">Stock</th>
-                      <th className="px-4 py-3 text-center font-semibold text-gray-700 uppercase tracking-wide">Liens</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {currentData.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-blue-50 transition-colors">
-                        <td className="px-4 py-3 text-gray-800 font-medium">{item.product_name}</td>
-                        <td className="px-4 py-3 font-mono text-gray-600 text-xs">{item.reference}</td>
-                        <td className="px-4 py-3 text-center">
-                          <span className={`px-2 py-1 text-xs rounded-full font-semibold ${
-                            item.difference_type === 'both' ? 'bg-purple-100 text-purple-700' :
-                            item.difference_type === 'price' ? 'bg-green-100 text-green-700' :
-                            'bg-orange-100 text-orange-700'
-                          }`}>
-                            {item.difference_type === 'both' ? '💰📦' : 
-                             item.difference_type === 'price' ? '💰' : '📦'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right text-gray-800 font-semibold">{formatPrice(item.site1_price)}</td>
-                        <td className="px-4 py-3 text-right text-gray-800 font-semibold">{formatPrice(item.site2_price)}</td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="text-right">
-                            <div className={`font-bold ${
-                              item.difference > 0 ? 'text-red-600' : 
-                              item.difference < 0 ? 'text-green-600' : 'text-gray-600'
-                            }`}>
-                              {item.difference !== 0 ? (
-                                <>{item.difference > 0 ? '+' : ''}{formatPrice(Math.abs(item.difference))}</>
-                              ) : (
-                                <span className="text-gray-400">Identique</span>
+              {/* ── Section upload ── */}
+              <div className="r-upload-section">
+                <div className="r-section-head">
+                  <div className="r-section-num">01</div>
+                  <div className="r-section-title">Fichiers sources</div>
+                  <div className="r-section-line" />
+                </div>
+                <div className="r-upload-grid">
+                  {uploadFiles.map(({ key, label, file }) => (
+                    <div key={key} className={`r-upload-card ${file ? 'has-file' : ''}`}>
+                      <div className="r-upload-row">
+                        <div className="r-upload-ic">
+                          {file ? <CheckCircle size={16} /> : <Upload size={16} />}
+                        </div>
+                        <div>
+                          <div className="r-upload-title">{label}</div>
+                          <div className="r-upload-sub">.xlsx / .xls</div>
+                        </div>
+                      </div>
+                      <input type="file" accept=".xlsx,.xls" onChange={e => onFile(e, key)} />
+                      {file && <div className="r-file-ok"><CheckCircle size={11} /> {file.name}</div>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Actions ── */}
+              <div className="r-actions">
+                <button className="r-btn-run" onClick={compare} disabled={!canGo || loading}>
+                  {loading
+                    ? <><div className="r-spinner" /> ANALYSE EN COURS</>
+                    : <><Zap size={16} className="btn-accent" /> <span>LANCER L'ANALYSE</span></>}
+                </button>
+              </div>
+
+              {/* ── Résultats ── */}
+              {results && selCat && (
+                <>
+                  {/* Titre catégorie sélectionnée */}
+                  <div className="r-section-head" style={{ marginBottom: 16 }}>
+                    <div className="r-section-num">02</div>
+                    <div className="r-section-title" style={{ fontSize: 20 }}>{selCat}</div>
+                    <div className="r-section-line" />
+                    <div style={{ fontFamily:'IBM Plex Mono,monospace', fontSize:11, color:'var(--ink4)', flexShrink:0 }}>
+                      {results[selCat].length} produits
+                    </div>
+                  </div>
+
+                  {/* Disponibilité */}
+                  {ss && (
+                    <div className="r-avail-grid">
+                      {[
+                        { cls:'av-green', num: ss.s1ins2in,   title:'Disponibles partout', b1:`${s1n} ✓`, b2:`${s2n} ✓` },
+                        { cls:'av-blue',  num: ss.s1ins2out,  title:`Exclusif ${s1n}`,     b1:`${s1n} ✓`, b2:`${s2n} ✗` },
+                        { cls:'av-amber', num: ss.s1outs2in,  title:`Exclusif ${s2n}`,     b1:`${s1n} ✗`, b2:`${s2n} ✓` },
+                        { cls:'av-slate', num: ss.s1outs2out, title:'Rupture totale',      b1:`${s1n} ✗`, b2:`${s2n} ✗` },
+                      ].map(({ cls, num, title, b1, b2 }) => (
+                        <div key={cls} className={`r-avail-card ${cls}`}>
+                          <div className="r-avail-num">{num}</div>
+                          <div className="r-avail-title">{title}</div>
+                          <div className="r-avail-badges">
+                            <span className="r-avail-badge">{b1}</span>
+                            <span className="r-avail-badge">{b2}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Filtre + stat strip */}
+                  <div className="r-filter-bar">
+                    <span className="r-filter-label">Filtrer ·</span>
+                    {[
+                      { key:'all',   cls:'f-all',   label:'Tous',         count: catD.length },
+                      { key:'both',  cls:'f-both',  label:'Prix + Stock', count: catD.filter(d=>d.difference_type==='both').length  },
+                      { key:'price', cls:'f-price', label:'Prix seul',    count: catD.filter(d=>d.difference_type==='price').length },
+                      { key:'stock', cls:'f-stock', label:'Stock seul',   count: catD.filter(d=>d.difference_type==='stock').length },
+                    ].map(f => (
+                      <button key={f.key} className={`r-chip ${f.cls} ${filter===f.key?'act':''}`} onClick={()=>setFilter(f.key)}>
+                        {f.label}<span className="cn">{f.count}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Stat strip */}
+                  {filtered.length > 0 && (
+                    <div className="r-stat-strip">
+                      <div className="r-stat-cell">
+                        <div className="r-stat-lbl">Produits affichés</div>
+                        <div className="r-stat-val">{filtered.length}</div>
+                      </div>
+                      <div className="r-stat-cell">
+                        <div className="r-stat-lbl">{s1n} + cher</div>
+                        <div className="r-stat-val sv-red">{filtered.filter(d=>d.difference>0).length}</div>
+                      </div>
+                      <div className="r-stat-cell">
+                        <div className="r-stat-lbl">{s1n} – cher</div>
+                        <div className="r-stat-val sv-green">{filtered.filter(d=>d.difference<0).length}</div>
+                      </div>
+                      <div className="r-stat-cell">
+                        <div className="r-stat-lbl">Écart moyen</div>
+                        <div className="r-stat-val sv-amber">
+                          {(filtered.reduce((s,d)=>s+Math.abs(d.diff_percent),0)/filtered.length).toFixed(1)}%
+                        </div>
+                      </div>
+                      <div className="r-stat-cell">
+                        <div className="r-stat-lbl">Écart max</div>
+                        <div className="r-stat-val sv-red">
+                          {Math.max(...filtered.map(d=>Math.abs(d.diff_percent))).toFixed(1)}%
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Grille de cartes produit */}
+                  {filtered.length > 0 ? (
+                    <div className="r-cards-grid">
+                      {filtered.map((item, i) => (
+                        <div key={i} className="r-pcard">
+
+                          {/* En-tête */}
+                          <div className="r-pcard-head">
+                            <div>
+                              <div className="r-pcard-name">{item.product_name}</div>
+                              <div className="r-pcard-ref"># {item.reference}</div>
+                            </div>
+                            <span className={`r-pcard-badge ${item.difference_type==='both'?'pb-both':item.difference_type==='price'?'pb-price':'pb-stock'}`}>
+                              {item.difference_type==='both'?'P+S':item.difference_type==='price'?'PRIX':'STOCK'}
+                            </span>
+                          </div>
+
+                          {/* Corps : prix côte à côte */}
+                          <div className="r-pcard-body">
+                            <div className="r-price-col">
+                              <div className="r-price-site">{item.site1_name}</div>
+                              <div className="r-price-val">{fmt(item.site1_price)}</div>
+                              <span className={`r-price-stock ${item.site1_stock==='instock'?'ps-in':'ps-out'}`}>
+                                {item.site1_stock==='instock' ? '● EN STOCK' : '○ RUPTURE'}
+                              </span>
+                            </div>
+                            <div className="r-price-col">
+                              <div className="r-price-site">{item.site2_name}</div>
+                              <div className="r-price-val">{fmt(item.site2_price)}</div>
+                              <span className={`r-price-stock ${item.site2_stock==='instock'?'ps-in':'ps-out'}`}>
+                                {item.site2_stock==='instock' ? '● EN STOCK' : '○ RUPTURE'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Pied : écart + liens */}
+                          <div className="r-pcard-foot">
+                            {item.difference !== 0 ? (
+                              <div>
+                                <div className={`r-diff-val ${item.difference>0?'dv-up':'dv-down'}`}>
+                                  {item.difference>0
+                                    ? <ArrowUp size={13} />
+                                    : <ArrowDown size={13} />}
+                                  {fmt(Math.abs(item.difference))}
+                                </div>
+                                <div className="r-diff-pct">
+                                  {item.diff_percent>0?'+':''}{item.diff_percent.toFixed(1)}% · {item.site1_name} ref
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="r-diff-val dv-eq">— IDENTIQUE</div>
+                            )}
+                            <div className="r-card-links">
+                              {item.site1_url && (
+                                <a href={item.site1_url} target="_blank" rel="noopener noreferrer" className="r-card-link">
+                                  {item.site1_name.substring(0,2).toUpperCase()} ↗
+                                </a>
+                              )}
+                              {item.site2_url && (
+                                <a href={item.site2_url} target="_blank" rel="noopener noreferrer" className="r-card-link">
+                                  {item.site2_name.substring(0,2).toUpperCase()} ↗
+                                </a>
                               )}
                             </div>
-                            {item.difference !== 0 && (
-                              <div className="text-xs text-gray-500 font-medium">
-                                {item.diff_percent > 0 ? '+' : ''}{item.diff_percent.toFixed(1)}%
-                              </div>
-                            )}
                           </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex flex-col gap-1">
-                            <span className={`text-center px-2 py-1 text-xs rounded-md font-medium ${item.site1_stock === 'instock' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                              {site1Name}: {item.site1_stock === 'instock' ? '✓' : '✗'}
-                            </span>
-                            <span className={`text-center px-2 py-1 text-xs rounded-md font-medium ${item.site2_stock === 'instock' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                              {site2Name}: {item.site2_stock === 'instock' ? '✓' : '✗'}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <div className="flex gap-2 justify-center">
-                            {item.site1_url && (
-                              <a 
-                                href={item.site1_url} 
-                                target="_blank" 
-                                rel="noopener noreferrer" 
-                                className="bg-blue-100 text-blue-700 px-3 py-1 rounded-md text-xs font-semibold hover:bg-blue-200 transition-colors"
-                              >
-                                {site1Name === 'ZoneTech' ? 'ZT' : 'S1'} →
-                              </a>
-                            )}
-                            {item.site2_url && (
-                              <a 
-                                href={item.site2_url} 
-                                target="_blank" 
-                                rel="noopener noreferrer" 
-                                className="bg-blue-100 text-blue-700 px-3 py-1 rounded-md text-xs font-semibold hover:bg-blue-200 transition-colors"
-                              >
-                                {site2Name === 'UltraPC' ? 'UP' : site2Name === 'NextLevelPC' ? 'NL' : 'S2'} →
-                              </a>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="r-empty">
+                      <div className="r-empty-ic">0</div>
+                      <div className="r-empty-title">AUCUN RÉSULTAT</div>
+                      <div className="r-empty-sub">Aucun produit ne correspond au filtre sélectionné</div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* État initial */}
+              {!results && !loading && (
+                <div className="r-empty">
+                  <div className="r-empty-ic">—</div>
+                  <div className="r-empty-title">EN ATTENTE D'ANALYSE</div>
+                  <div className="r-empty-sub">
+                    Chargez vos fichiers {mode==='zt-up'?'ZoneTech & UltraPC':'ZoneTech & NextLevelPC'} puis lancez l'analyse
+                  </div>
+                </div>
+              )}
+
             </div>
-
-            {currentData.length === 0 && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center mt-4">
-                <p className="text-yellow-800 font-medium">Aucun produit ne correspond au filtre sélectionné</p>
-              </div>
-            )}
-          </>
-        )}
-
-        {!results && !loading && (
-          <div className="bg-white rounded-lg shadow-md border border-gray-200 p-12 text-center">
-            <Upload className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-700 mb-2">Prêt à comparer</h3>
-            <p className="text-gray-500">
-              {comparisonMode === 'zt-up' 
-                ? 'Chargez vos fichiers ZoneTech et UltraPC' 
-                : 'Chargez vos fichiers ZoneTech et NextLevelPC'}
-            </p>
           </div>
-        )}
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 
