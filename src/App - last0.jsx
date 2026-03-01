@@ -486,11 +486,6 @@ const css = `
     .r-sec-line      { display: none; }
   }
 
-  /* ≤ 600px — filter rail 2x2 */
-  @media (max-width: 600px) {
-    .r-filter-rail   { grid-template-columns: 1fr 1fr !important; }
-  }
-
   /* ≤ 480px — very small */
   @media (max-width: 480px) {
     .r-body          { padding: 12px 10px 80px; }
@@ -500,7 +495,6 @@ const css = `
     .r-pcol-price    { font-size: 16px; }
     .r-btn-run       { font-size: 15px; }
     .r-stat-v        { font-size: 20px; }
-    .r-filter-rail   { grid-template-columns: 1fr 1fr !important; }
   }
 `;
 
@@ -562,25 +556,14 @@ export default function PriceComparator() {
           const i2=m2.get(ref); if(!i2) return;
           const sM=i1.availability!==i2.availability, pM=i1.price_num!==i2.price_num;
           if(!sM&&!pM) return;
-          // Exclure les produits stock-only où les deux sites ont le même statut :
-          // si la seule différence est "stock" mais que les deux sont en rupture ou les deux en stock → pas actionnable
-          if(sM && !pM) {
-            const bothOut = i1.availability==='outofstock' && i2.availability==='outofstock';
-            const bothIn  = i1.availability==='instock'   && i2.availability==='instock';
-            if(bothOut || bothIn) return; // même état réel, ignorer
-          }
           const diff=i1.price_num-i2.price_num, diffPct=i2.price_num?(diff/i2.price_num)*100:0;
           const dtype=(sM&&pM)?'both':pM?'price':'stock';
-          // Pour les produits "both" : vérifier aussi que le stock est vraiment différent (un dispo, l'autre non)
-          // Si les deux sont en même état mais prix différent → reclasser en 'price'
-          const realStockDiff = i1.availability !== i2.availability;
-          const finalType = (!realStockDiff && dtype==='both') ? 'price' : dtype;
           items.push({
             product_name:i1.product_name||i1.nom_produit||'N/A', reference:ref,
             site1_price:i1.price_num, site2_price:i2.price_num,
             difference:diff, diff_percent:diffPct,
             site1_stock:i1.availability, site2_stock:i2.availability,
-            difference_type:finalType,
+            difference_type:dtype,
             site1_url:i1.url_produit||i1.url||'', site2_url:i2.url_produit||i2.url||'',
             site1_name:s1, site2_name:s2
           });
@@ -615,11 +598,9 @@ export default function PriceComparator() {
   const filtered = (() => {
     if(!results||!selCat) return [];
     const d=results[selCat];
-    // Filtres basés sur l'état de disponibilité
-    if(filter==='both-in')   return d.filter(x=>x.site1_stock==='instock'   &&x.site2_stock==='instock');
-    if(filter==='excl-s1')   return d.filter(x=>x.site1_stock==='instock'   &&x.site2_stock==='outofstock');
-    if(filter==='excl-s2')   return d.filter(x=>x.site1_stock==='outofstock'&&x.site2_stock==='instock');
-    if(filter==='both-out')  return d.filter(x=>x.site1_stock==='outofstock'&&x.site2_stock==='outofstock');
+    if(filter==='both')  return d.filter(x=>x.difference_type==='both');
+    if(filter==='price') return d.filter(x=>x.difference_type==='price');
+    if(filter==='stock') return d.filter(x=>x.difference_type==='stock');
     return d;
   })();
 
@@ -634,10 +615,10 @@ export default function PriceComparator() {
 
   const catD = results&&selCat ? results[selCat] : [];
   const ss = catD.length ? {
-    s1ins2in:   catD.filter(d=>d.site1_stock==='instock'   &&d.site2_stock==='instock').length,
-    s1ins2out:  catD.filter(d=>d.site1_stock==='instock'   &&d.site2_stock==='outofstock').length,
-    s1outs2in:  catD.filter(d=>d.site1_stock==='outofstock'&&d.site2_stock==='instock').length,
-    s1outs2out: catD.filter(d=>d.site1_stock==='outofstock'&&d.site2_stock==='outofstock').length,
+    s1ins2in:   filtered.filter(d=>d.site1_stock==='instock'   &&d.site2_stock==='instock').length,
+    s1ins2out:  filtered.filter(d=>d.site1_stock==='instock'   &&d.site2_stock==='outofstock').length,
+    s1outs2in:  filtered.filter(d=>d.site1_stock==='outofstock'&&d.site2_stock==='instock').length,
+    s1outs2out: filtered.filter(d=>d.site1_stock==='outofstock'&&d.site2_stock==='outofstock').length,
   } : null;
 
   const canGo = mode==='zt-up' ? (ztFile&&upFile) : (ztFile2&&nlFile);
@@ -687,8 +668,8 @@ export default function PriceComparator() {
           {/* Desktop Sidebar */}
           <aside className="r-sidebar">
             <div className="r-logo-block">
-              <div className="r-logo-mark">PRICE MISMATCHING</div>
-              <div className="r-logo-sub">Markets zn-up-nx</div>
+              <div className="r-logo-mark">PRICE MATCHING</div>
+              <div className="r-logo-sub">Market Intelligence</div>
             </div>
             <NavContent />
           </aside>
@@ -700,7 +681,7 @@ export default function PriceComparator() {
             <div className="r-topbar">
               <div className="r-topbar-l">
                 <button className="r-burger" style={{display:'none'}} onClick={()=>setDrawer(true)}><Menu size={17}/></button>
-                <div className="r-title">ACH TARI <span>F STOCK</span></div>
+                <div className="r-title">ACH TARI<span>F STOCK</span></div>
               </div>
               <div className="r-topbar-r">
                 {results && (
@@ -782,16 +763,12 @@ export default function PriceComparator() {
                   {ss && (
                     <div className="r-avail-grid">
                       {[
-                        {cls:'av-green',fkey:'both-in', n:ss.s1ins2in,  title:'Disponibles partout',b1:`${s1n} ✓`,b2:`${s2n} ✓`},
-                        {cls:'av-blue', fkey:'excl-s1', n:ss.s1ins2out, title:`Excl. ${s1n}`,       b1:`${s1n} ✓`,b2:`${s2n} ✗`},
-                        {cls:'av-amber',fkey:'excl-s2', n:ss.s1outs2in, title:`Excl. ${s2n}`,       b1:`${s1n} ✗`,b2:`${s2n} ✓`},
-                        {cls:'av-slate',fkey:'both-out',n:ss.s1outs2out,title:'Rupture totale',     b1:`${s1n} ✗`,b2:`${s2n} ✗`},
-                      ].map(({cls,fkey,n,title,b1,b2})=>(
-                        <div key={cls}
-                          className={`r-avail-card ${cls}`}
-                          onClick={()=>setFilter(fkey)}
-                          style={{cursor:'pointer',transition:'transform 0.12s, box-shadow 0.12s', outline: filter===fkey?'2px solid currentColor':'none', outlineOffset:2}}
-                        >
+                        {cls:'av-green',n:ss.s1ins2in,  title:'Disponibles partout',b1:`${s1n} ✓`,b2:`${s2n} ✓`},
+                        {cls:'av-blue', n:ss.s1ins2out, title:`Excl. ${s1n}`,       b1:`${s1n} ✓`,b2:`${s2n} ✗`},
+                        {cls:'av-amber',n:ss.s1outs2in, title:`Excl. ${s2n}`,       b1:`${s1n} ✗`,b2:`${s2n} ✓`},
+                        {cls:'av-slate',n:ss.s1outs2out,title:'Rupture totale',     b1:`${s1n} ✗`,b2:`${s2n} ✗`},
+                      ].map(({cls,n,title,b1,b2})=>(
+                        <div key={cls} className={`r-avail-card ${cls}`}>
                           <div className="r-avail-n">{n}</div>
                           <div className="r-avail-title">{title}</div>
                           <div className="r-avail-badges"><span className="r-avail-badge">{b1}</span><span className="r-avail-badge">{b2}</span></div>
@@ -800,195 +777,19 @@ export default function PriceComparator() {
                     </div>
                   )}
 
-                  {/* ── 3 FILTRES STOCK ── */}
-                  {(() => {
-                    const s1 = catD[0]?.site1_name || s1n;
-                    const s2 = catD[0]?.site2_name || s2n;
-                    const nBothIn  = catD.filter(d=>d.site1_stock==='instock'   &&d.site2_stock==='instock').length;
-                    const nExclS1  = catD.filter(d=>d.site1_stock==='instock'   &&d.site2_stock==='outofstock').length;
-                    const nExclS2  = catD.filter(d=>d.site1_stock==='outofstock'&&d.site2_stock==='instock').length;
-                    const nBothOut = catD.filter(d=>d.site1_stock==='outofstock'&&d.site2_stock==='outofstock').length;
-
-                    const tabs = [
-                      {
-                        key: 'all',
-                        label: 'Tous',
-                        count: catD.length,
-                        indicators: null,
-                        color: 'var(--ink)',
-                        bg: 'var(--ink)',
-                        textActive: 'var(--cream)',
-                      },
-                      {
-                        key: 'both-in',
-                        label: 'Disponibles partout',
-                        count: nBothIn,
-                        indicators: [
-                          { site: s1, in: true },
-                          { site: s2, in: true },
-                        ],
-                        color: '#00c853',
-                        bg: 'rgba(0,200,83,0.09)',
-                        textActive: '#00c853',
-                      },
-                      {
-                        key: 'excl',
-                        label: 'Dispo asymétrique',
-                        count: nExclS1 + nExclS2,
-                        sub: [
-                          { label: `Excl. ${s1}`, n: nExclS1, ind: [{site:s1,in:true},{site:s2,in:false}] },
-                          { label: `Excl. ${s2}`, n: nExclS2, ind: [{site:s1,in:false},{site:s2,in:true}] },
-                        ],
-                        color: '#f59e0b',
-                        bg: 'rgba(245,158,11,0.08)',
-                        textActive: '#b45309',
-                      },
-                      {
-                        key: 'both-out',
-                        label: 'Rupture totale',
-                        count: nBothOut,
-                        indicators: [
-                          { site: s1, in: false },
-                          { site: s2, in: false },
-                        ],
-                        color: '#e53935',
-                        bg: 'rgba(229,57,53,0.07)',
-                        textActive: '#e53935',
-                      },
-                    ];
-
-                    const StockPill = ({site, in: isIn}) => (
-                      <span style={{
-                        fontFamily:'IBM Plex Mono,monospace', fontSize:9, fontWeight:600,
-                        padding:'1px 6px', borderRadius:3,
-                        background: isIn ? 'rgba(0,200,83,0.10)' : 'rgba(229,57,53,0.10)',
-                        color: isIn ? '#00c853' : '#e53935',
-                        border: `1px solid ${isIn?'rgba(0,200,83,0.22)':'rgba(229,57,53,0.2)'}`,
-                        whiteSpace:'nowrap',
-                      }}>{isIn?'●':'○'} {site}</span>
-                    );
-
-                    // "excl" est en fait deux sous-filtres — on le gère spécialement
-                    const isExclActive = filter==='excl-s1'||filter==='excl-s2';
-
-                    return (
-                      <div style={{marginBottom:18}}>
-                        {/* ─── Rangée principale ─── */}
-                        <div style={{
-                          display:'grid',
-                          gridTemplateColumns:'auto 1fr 1fr 1fr',
-                          gap:6,
-                        }}>
-
-                          {/* Tous */}
-                          {(() => {
-                            const t = tabs[0];
-                            const act = filter==='all';
-                            return (
-                              <button onClick={()=>setFilter('all')} style={{
-                                padding:'10px 16px', borderRadius:8, border:'none',
-                                background: act ? 'var(--ink)' : 'var(--cream2)',
-                                border: act ? '1.5px solid var(--ink)' : '1.5px solid var(--border2)',
-                                cursor:'pointer', outline:'none', transition:'all 0.15s',
-                                display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2,
-                              }}>
-                                <span style={{fontFamily:'Bebas Neue,sans-serif',fontSize:22,lineHeight:1,color: act?'var(--cream)':'var(--ink)',letterSpacing:'0.02em'}}>{catD.length}</span>
-                                <span style={{fontFamily:'IBM Plex Sans,sans-serif',fontSize:10,fontWeight:600,color: act?'rgba(245,240,232,0.7)':'var(--ink3)',whiteSpace:'nowrap'}}>Tous</span>
-                              </button>
-                            );
-                          })()}
-
-                          {/* Disponibles partout */}
-                          {(() => {
-                            const act = filter==='both-in';
-                            return (
-                              <button onClick={()=>setFilter('both-in')} style={{
-                                padding:'10px 12px', borderRadius:8, cursor:'pointer', outline:'none', transition:'all 0.15s',
-                                background: act ? 'rgba(0,200,83,0.09)' : 'var(--cream2)',
-                                border: act ? '1.5px solid #00c853' : '1.5px solid var(--border2)',
-                                textAlign:'left',
-                              }}>
-                                <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',marginBottom:5}}>
-                                  <span style={{fontFamily:'IBM Plex Sans,sans-serif',fontSize:11,fontWeight:700,color:act?'#00c853':'var(--ink2)'}}>Disponibles partout</span>
-                                  <span style={{fontFamily:'Bebas Neue,sans-serif',fontSize:20,letterSpacing:'0.02em',lineHeight:1,color:act?'#00c853':'var(--ink)'}}>{nBothIn}</span>
-                                </div>
-                                <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
-                                  <StockPill site={s1} in={true}/><StockPill site={s2} in={true}/>
-                                </div>
-                              </button>
-                            );
-                          })()}
-
-                          {/* Dispo asymétrique — 2 sous-filtres */}
-                          {(() => {
-                            const act = isExclActive;
-                            return (
-                              <div style={{
-                                borderRadius:8, overflow:'hidden',
-                                border: act ? '1.5px solid #f59e0b' : '1.5px solid var(--border2)',
-                                background: act ? 'rgba(245,158,11,0.06)' : 'var(--cream2)',
-                                transition:'all 0.15s',
-                              }}>
-                                {/* Titre de groupe */}
-                                <div style={{
-                                  padding:'6px 12px 4px',
-                                  borderBottom:'1px solid var(--border)',
-                                  display:'flex', alignItems:'center', justifyContent:'space-between',
-                                }}>
-                                  <span style={{fontFamily:'IBM Plex Sans,sans-serif',fontSize:10,fontWeight:700,color:act?'#b45309':'var(--ink3)'}}>Dispo asymétrique</span>
-                                  <span style={{fontFamily:'Bebas Neue,sans-serif',fontSize:16,letterSpacing:'0.02em',color:act?'#f59e0b':'var(--ink)',lineHeight:1}}>{nExclS1+nExclS2}</span>
-                                </div>
-                                {/* Deux sous-lignes cliquables */}
-                                {[
-                                  {fkey:'excl-s1', n:nExclS1, ind:[{site:s1,in:true},{site:s2,in:false}]},
-                                  {fkey:'excl-s2', n:nExclS2, ind:[{site:s1,in:false},{site:s2,in:true}]},
-                                ].map((sub,i)=>{
-                                  const subAct = filter===sub.fkey;
-                                  return (
-                                    <button key={sub.fkey} onClick={()=>setFilter(sub.fkey)} style={{
-                                      display:'flex', width:'100%', alignItems:'center',
-                                      justifyContent:'space-between', gap:6,
-                                      padding:'5px 12px',
-                                      background: subAct ? 'rgba(245,158,11,0.10)' : 'transparent',
-                                      border:'none', borderBottom: i===0 ? '1px solid var(--border)' : 'none',
-                                      cursor:'pointer', outline:'none', transition:'background 0.12s',
-                                    }}>
-                                      <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
-                                        {sub.ind.map((p,j)=><StockPill key={j} site={p.site} in={p.in}/>)}
-                                      </div>
-                                      <span style={{fontFamily:'Bebas Neue,sans-serif',fontSize:16,letterSpacing:'0.02em',color: subAct?'#f59e0b':'var(--ink)',lineHeight:1,flexShrink:0}}>{sub.n}</span>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            );
-                          })()}
-
-                          {/* Rupture totale */}
-                          {(() => {
-                            const act = filter==='both-out';
-                            return (
-                              <button onClick={()=>setFilter('both-out')} style={{
-                                padding:'10px 12px', borderRadius:8, cursor:'pointer', outline:'none', transition:'all 0.15s',
-                                background: act ? 'rgba(229,57,53,0.07)' : 'var(--cream2)',
-                                border: act ? '1.5px solid #e53935' : '1.5px solid var(--border2)',
-                                textAlign:'left',
-                              }}>
-                                <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',marginBottom:5}}>
-                                  <span style={{fontFamily:'IBM Plex Sans,sans-serif',fontSize:11,fontWeight:700,color:act?'#e53935':'var(--ink2)'}}>Rupture totale</span>
-                                  <span style={{fontFamily:'Bebas Neue,sans-serif',fontSize:20,letterSpacing:'0.02em',lineHeight:1,color:act?'#e53935':'var(--ink)'}}>{nBothOut}</span>
-                                </div>
-                                <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
-                                  <StockPill site={s1} in={false}/><StockPill site={s2} in={false}/>
-                                </div>
-                              </button>
-                            );
-                          })()}
-
-                        </div>
-                      </div>
-                    );
-                  })()}
+                  <div className="r-filter-bar">
+                    <span className="r-filter-lbl">Filtrer ·</span>
+                    {[
+                      {key:'all',  cls:'f-all',  lbl:'Tous',    n:catD.length},
+                      {key:'both', cls:'f-both', lbl:'P+S',     n:catD.filter(d=>d.difference_type==='both').length},
+                      {key:'price',cls:'f-price',lbl:'Prix',    n:catD.filter(d=>d.difference_type==='price').length},
+                      {key:'stock',cls:'f-stock',lbl:'Stock',   n:catD.filter(d=>d.difference_type==='stock').length},
+                    ].map(f=>(
+                      <button key={f.key} className={`r-chip ${f.cls} ${filter===f.key?'act':''}`} onClick={()=>setFilter(f.key)}>
+                        {f.lbl}<span className="cn">{f.n}</span>
+                      </button>
+                    ))}
+                  </div>
 
                   {filtered.length>0 && (
                     <div className="r-stat-strip">
