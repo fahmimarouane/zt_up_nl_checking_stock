@@ -668,7 +668,7 @@ export default function PriceComparator() {
           {/* Desktop Sidebar */}
           <aside className="r-sidebar">
             <div className="r-logo-block">
-              <div className="r-logo-mark">PRICEWATCH</div>
+              <div className="r-logo-mark">PRICE MATCHING</div>
               <div className="r-logo-sub">Market Intelligence</div>
             </div>
             <NavContent />
@@ -681,7 +681,7 @@ export default function PriceComparator() {
             <div className="r-topbar">
               <div className="r-topbar-l">
                 <button className="r-burger" style={{display:'none'}} onClick={()=>setDrawer(true)}><Menu size={17}/></button>
-                <div className="r-title">INTEL <span>TARIFAIRE</span></div>
+                <div className="r-title">ACH TARI<span>F STOCK</span></div>
               </div>
               <div className="r-topbar-r">
                 {results && (
